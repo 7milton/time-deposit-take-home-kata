@@ -6,5 +6,6 @@ obj/
 __pycache__/
 .vs/
 .idea/
+*.iml
 package-lock.json
 .vscode/
