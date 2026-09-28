@@ -1,5 +1,6 @@
 package org.ikigaidigital.adapter.in.web;
 
+import lombok.RequiredArgsConstructor;
 import org.ikigaidigital.application.TimeDepositView;
 import org.ikigaidigital.application.port.in.TimeDepositUseCase;
 import org.springframework.http.ResponseEntity;
@@ -12,12 +13,9 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/time-deposits")
+@RequiredArgsConstructor
 public class TimeDepositController {
     private final TimeDepositUseCase deposits;
-
-    public TimeDepositController(TimeDepositUseCase deposits) {
-        this.deposits = deposits;
-    }
 
     @PostMapping("/update-balances")
     public ResponseEntity<Void> updateBalances() {

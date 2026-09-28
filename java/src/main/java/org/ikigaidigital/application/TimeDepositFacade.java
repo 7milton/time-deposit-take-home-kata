@@ -1,5 +1,6 @@
 package org.ikigaidigital.application;
 
+import lombok.RequiredArgsConstructor;
 import org.ikigaidigital.TimeDeposit;
 import org.ikigaidigital.application.port.in.TimeDepositUseCase;
 import org.ikigaidigital.application.port.out.TimeDepositRepository;
@@ -10,14 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class TimeDepositFacade implements TimeDepositUseCase {
     private final TimeDepositRepository deposits;
     private final TimeDepositCalculator calculator;
-
-    public TimeDepositFacade(TimeDepositRepository deposits, TimeDepositCalculator calculator) {
-        this.deposits = deposits;
-        this.calculator = calculator;
-    }
 
     /**
      * Runs one monthly interest calculation for each stored deposit in a single transaction.

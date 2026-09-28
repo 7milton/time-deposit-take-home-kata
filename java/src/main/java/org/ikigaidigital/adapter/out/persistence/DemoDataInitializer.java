@@ -1,5 +1,6 @@
 package org.ikigaidigital.adapter.out.persistence;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
@@ -11,14 +12,10 @@ import java.time.LocalDate;
 
 @Component
 @Profile("demo")
+@RequiredArgsConstructor
 public class DemoDataInitializer implements ApplicationRunner {
     private final TimeDepositJpaRepository deposits;
     private final WithdrawalJpaRepository withdrawals;
-
-    public DemoDataInitializer(TimeDepositJpaRepository deposits, WithdrawalJpaRepository withdrawals) {
-        this.deposits = deposits;
-        this.withdrawals = withdrawals;
-    }
 
     @Override
     @Transactional

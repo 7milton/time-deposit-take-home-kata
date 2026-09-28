@@ -10,9 +10,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class DemoSwaggerCorsConfiguration implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/time-deposits")
-            .allowedOrigins("http://localhost:8081")
-            .allowedMethods("GET", "POST");
         registry.addMapping("/api/time-deposits/**")
             .allowedOrigins("http://localhost:8081")
             .allowedMethods("GET", "POST");

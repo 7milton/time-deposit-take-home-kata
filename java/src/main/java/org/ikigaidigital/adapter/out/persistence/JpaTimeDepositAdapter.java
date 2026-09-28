@@ -1,5 +1,6 @@
 package org.ikigaidigital.adapter.out.persistence;
 
+import lombok.RequiredArgsConstructor;
 import org.ikigaidigital.TimeDeposit;
 import org.ikigaidigital.application.TimeDepositView;
 import org.ikigaidigital.application.port.out.TimeDepositRepository;
@@ -10,14 +11,10 @@ import java.math.RoundingMode;
 import java.util.List;
 
 @Repository
+@RequiredArgsConstructor
 public class JpaTimeDepositAdapter implements TimeDepositRepository {
     private final TimeDepositJpaRepository deposits;
     private final TimeDepositEntityMapper mapper;
-
-    public JpaTimeDepositAdapter(TimeDepositJpaRepository deposits, TimeDepositEntityMapper mapper) {
-        this.deposits = deposits;
-        this.mapper = mapper;
-    }
 
     /**
      * Locks deposits in ID order for the caller's accrual transaction.

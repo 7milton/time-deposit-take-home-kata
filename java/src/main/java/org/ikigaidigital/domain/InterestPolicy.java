@@ -19,6 +19,8 @@ public interface InterestPolicy {
     /**
      * Calculates the unrounded interest increment without changing the deposit.
      * The calculator rounds the increment and updates the balance.
+     * Existing plans divide the stated rates by 12, matching the original calculator.
+     * Preserving that behavior takes precedence over the assignment's monthly-rate wording.
      *
      * @param deposit deposit on which interest is calculated
      * @return monthly interest increment, or zero when the plan is not yet eligible

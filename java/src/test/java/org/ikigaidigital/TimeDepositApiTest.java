@@ -1,9 +1,14 @@
 package org.ikigaidigital;
 
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.PessimisticLockException;
 import org.ikigaidigital.adapter.out.persistence.TimeDepositEntity;
 import org.ikigaidigital.adapter.out.persistence.TimeDepositJpaRepository;
 import org.ikigaidigital.adapter.out.persistence.WithdrawalEntity;
 import org.ikigaidigital.adapter.out.persistence.WithdrawalJpaRepository;
+import org.ikigaidigital.application.port.out.TimeDepositRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +17,9 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -25,9 +33,13 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
+import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -49,6 +61,15 @@ class TimeDepositApiTest {
     WithdrawalJpaRepository withdrawals;
 
     @Autowired
+    TimeDepositRepository repository;
+
+    @Autowired
+    EntityManagerFactory entityManagerFactory;
+
+    @Autowired
+    PlatformTransactionManager transactionManager;
+
+    @Autowired
     RequestMappingHandlerMapping routes;
 
     @LocalServerPort
@@ -65,14 +86,17 @@ class TimeDepositApiTest {
 
     @Test
     void exposesExactlyTheTwoRequiredApiOperations() {
-        var apiPaths = routes.getHandlerMethods().keySet().stream()
-            .filter(mapping -> mapping.getPathPatternsCondition() != null)
-            .flatMap(mapping -> mapping.getPathPatternsCondition().getPatternValues().stream())
-            .filter(path -> path.startsWith("/api/"))
+        var applicationMappings = routes.getHandlerMethods().entrySet().stream()
+            .filter(entry -> entry.getValue().getBeanType().getPackageName().startsWith("org.ikigaidigital."))
+            .map(Map.Entry::getKey)
             .toList();
 
-        assertThat(apiPaths).containsExactlyInAnyOrder(
-            "/api/time-deposits", "/api/time-deposits/update-balances");
+        assertThat(applicationMappings)
+            .extracting(mapping -> mapping.getMethodsCondition().getMethods(),
+                mapping -> mapping.getPatternValues())
+            .containsExactlyInAnyOrder(
+                tuple(Set.of(RequestMethod.GET), Set.of("/api/time-deposits")),
+                tuple(Set.of(RequestMethod.POST), Set.of("/api/time-deposits/update-balances")));
     }
 
     @Test
@@ -151,6 +175,21 @@ class TimeDepositApiTest {
     }
 
     @Test
+    void accrualKeepsWriteLocksUntilTheTransactionCompletes() {
+        TimeDepositEntity deposit = deposit("basic", "1000.00", 45);
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            repository.lockAllForAccrual();
+
+            assertThatThrownBy(() -> acquireIndependentWriteLock(deposit.getId()))
+                .isInstanceOfAny(LockTimeoutException.class, PessimisticLockException.class);
+        });
+
+        assertThatCode(() -> acquireIndependentWriteLock(deposit.getId()))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
     void defaultProfileDoesNotEnableDemoCors() throws Exception {
         HttpResponse<String> response = preflight("/api/time-deposits", "GET");
 
@@ -169,6 +208,22 @@ class TimeDepositApiTest {
 
     private BigDecimal balance(int id) {
         return deposits.findById(id).orElseThrow().getBalance();
+    }
+
+    private void acquireIndependentWriteLock(int id) {
+        // A separate persistence context creates a competing database transaction.
+        try (var entityManager = entityManagerFactory.createEntityManager()) {
+            var transaction = entityManager.getTransaction();
+            transaction.begin();
+            try {
+                entityManager.find(TimeDepositEntity.class, id, LockModeType.PESSIMISTIC_WRITE,
+                    Map.of("jakarta.persistence.lock.timeout", 0));
+            } finally {
+                if (transaction.isActive()) {
+                    transaction.rollback();
+                }
+            }
+        }
     }
 
     private TimeDepositEntity deposit(String planType, String balance, int days) {
