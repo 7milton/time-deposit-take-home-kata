@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/time_deposit}
+    username: ${DB_USER:time_deposit}
+    password: ${DB_PASSWORD:time_deposit}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate

@@ -1,0 +1,10 @@
+extends:
+  - recommended
+
+rules:
+  # The kata has no declared license. Do not imply one in the API metadata.
+  info-license: off
+  # These two operations have no request payload, parameters, or authentication.
+  # The assignment explicitly excludes invalid-input and exception handling.
+  # Revisit this rule if validation or authentication is added later.
+  operation-4xx-response: off
