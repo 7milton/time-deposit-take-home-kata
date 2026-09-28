@@ -54,3 +54,7 @@ commits. Report the checks actually run and any remaining limitations.
 ## Verification
 
 The suite contains 26 tests covering the domain, the input port with an in-memory repository, and the real HTTP/PostgreSQL integration. Commands and verified results are recorded in the [runbook](../java/README.md#verification). The original [assignment](ASSIGNMENT.md) is retained for comparison.
+
+## CI automation
+
+Codex also assisted with the GitHub Actions workflow to automate the existing verification commands and deliver the tested JAR. The workflow runs on pull requests, pushes to `main`, and manual dispatches; it preserves test reports for troubleshooting. Its configuration and application commands are checked locally before committing. GitHub execution and artifact upload must be confirmed from the actual workflow run after publication.

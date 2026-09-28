@@ -34,4 +34,10 @@ mvn -f java/pom.xml clean verify
 - [AI workflow and three reusable prompts](docs/AI_WORKFLOW.md)
 - [Original assignment](docs/ASSIGNMENT.md)
 
+## CI and artifact delivery
+
+[GitHub Actions](https://github.com/7milton/time-deposit-take-home-kata/actions/workflows/ci.yml) builds the application with Java 21, runs the unit and PostgreSQL Testcontainers tests, and validates OpenAPI on pull requests and pushes to `main`. It also supports manual runs.
+
+Successful runs provide the executable JAR as a downloadable artifact. See the [pipeline instructions](java/README.md#ci-and-artifact-delivery) for reports and downloads.
+
 This fork contains the Java solution; the unused language starters have been removed.

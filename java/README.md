@@ -77,3 +77,17 @@ Verified on 2026-09-28: **26 tests passed** — 14 calculator cases, 1 facade te
 The packaged JAR was also started with the demo profile against a fresh PostgreSQL database. GET, POST, seeded withdrawals, resulting balances, unchanged days, and the Swagger CORS response were checked over HTTP.
 
 The [AI workflow](../docs/AI_WORKFLOW.md) records the tools, repository instructions, and three prompts for reproducing the development stages.
+
+## CI and artifact delivery
+
+The [CI workflow](../.github/workflows/ci.yml) runs on pushes to `main`, pull requests targeting `main`, and manual dispatches. It uses an Ubuntu runner with Java 21, Maven dependency caching, and Node.js 22 for the pinned OpenAPI linter. Testcontainers starts its own PostgreSQL instances using the runner's Docker daemon.
+
+Each run executes `mvn --batch-mode --no-transfer-progress -f java/pom.xml clean verify` and the OpenAPI lint command above. Available Surefire reports are uploaded even when verification fails and retained for 14 days. The executable JAR is uploaded only after all preceding steps succeed and retained for 30 days under `time-deposit-<commit-sha>`.
+
+After pushing the workflow to your fork, open **Actions → CI** to inspect a run or select **Run workflow**. Download reports or the JAR archive from the run's **Artifacts** section. Extract the JAR, start PostgreSQL using the local setup instructions, then run:
+
+```sh
+SPRING_PROFILES_ACTIVE=demo java -jar time-deposit-kata-1.0-SNAPSHOT.jar
+```
+
+Delivery stops at the downloadable JAR; hosting and automatic deployment are not configured. The workflow uses read-only repository permissions and actions pinned to commit SHAs. It requires no custom secrets. A successful local build verifies the application; the first GitHub Actions result is available only after the workflow is pushed and runs there.
