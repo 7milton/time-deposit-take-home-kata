@@ -8,7 +8,7 @@
 
 ## Preserve compatibility
 
-- Keep the shared `TimeDeposit` class unchanged and preserve the `TimeDepositCalculator.updateBalance(List<TimeDeposit>)` signature and behavior. Establish existing behavior with characterization tests before refactoring calculations.
+- Keep the shared `TimeDeposit` class unchanged. Preserve the original `org.ikigaidigital.TimeDepositCalculator` public class, its public no-argument constructor, and `updateBalance(List<TimeDeposit>)` signature and behavior. Its compatibility tests must compile and run without Spring. Establish existing behavior with characterization tests before refactoring calculations.
 - Retain the original rate division by 12 and interest rounding through `new BigDecimal(double)` with `HALF_UP`. Replacing it with `BigDecimal.valueOf` can change half-cent results.
 - Keep exactly the two application operations defined in `java/openapi.yaml`, including their response fields and status codes.
 

@@ -16,8 +16,21 @@ class TimeDepositCalculatorTest {
 
     @ParameterizedTest
     @CsvSource({
-        "basic, 0, 1000.00, 1000.00",
-        "basic, 29, 1000.00, 1000.00",
+        "basic, 0", "basic, 29", "basic, 30",
+        "student, 0", "student, 29", "student, 30",
+        "premium, 0", "premium, 29", "premium, 30"
+    })
+    void noPlanAccruesDuringTheFirstThirtyDays(String plan, int days) {
+        TimeDeposit deposit = new TimeDeposit(1, plan, 1000.00, days);
+
+        calculator.updateBalance(List.of(deposit));
+
+        assertThat(deposit.getBalance()).isEqualTo(1000.00);
+        assertThat(deposit.getDays()).isEqualTo(days);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
         "student, 364, 1000.00, 1002.50",
         "student, 367, 1000.00, 1000.00",
         "premium, 44, 1000.00, 1000.00",

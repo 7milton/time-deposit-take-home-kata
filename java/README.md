@@ -1,6 +1,6 @@
 # Java solution
 
-Java 21, Spring Boot 4.1.1, Spring Data JPA, PostgreSQL, Flyway, MapStruct, and Lombok builders. The shared `TimeDeposit` class is unchanged. `TimeDepositCalculator.updateBalance(List<TimeDeposit>)` preserves its signature and per-call calculation behavior.
+Java 21, Spring Boot 4.1.1, Spring Data JPA, PostgreSQL, Flyway, MapStruct, and Lombok builders. The shared `TimeDeposit` class is unchanged. The original `org.ikigaidigital.TimeDepositCalculator` supports `new TimeDepositCalculator()` and preserves the `updateBalance(List<TimeDeposit>)` signature and per-call calculation behavior.
 
 ## Run locally
 
@@ -53,7 +53,9 @@ Open [Swagger UI](http://localhost:8081), expand GET or POST, then select **Try 
 | `adapter.out.persistence` | `JpaTimeDepositAdapter`, Spring Data repositories, entities, MapStruct mapper, and demo data. |
 | `config` | Spring bean registration and demo CORS configuration. |
 
-The Spring entry point and unchanged shared `TimeDeposit` class remain in the root package. The core has no dependency on adapter packages or JPA. Spring transaction annotations on the facade keep transaction management explicit without a separate decorator.
+The Spring entry point, unchanged shared `TimeDeposit` class, and original public `TimeDepositCalculator` entry point remain in the root package. The public calculator delegates to the domain calculator with the original three policies, so existing callers can keep their imports and no-argument construction. Spring injects registered policies into the domain calculator directly. Both paths use the same calculation implementation.
+
+The core has no dependency on adapter packages or JPA. Spring transaction annotations on the facade keep transaction management explicit without a separate decorator.
 
 The facade loads deposits with pessimistic write locks, calculates interest, and saves balances in one transaction. A failed update rolls back the whole operation. The locks remain held until commit or rollback; they protect existing rows from competing writes. This all-deposit operation loads and locks the current rows, which suits the kata's scope. It does not deduplicate requests or prevent concurrent inserts.
 
@@ -72,9 +74,11 @@ npx --yes @redocly/cli@1.34.5 lint java/openapi.yaml --config .redocly.yaml
 
 The Java check requires Docker and builds the executable JAR. The tests use real PostgreSQL through Testcontainers and in-memory ports for the application test.
 
-Verified on 2026-09-28: **26 tests passed** — 14 calculator cases, 1 facade test, 8 database/API tests, and 3 demo-profile tests. Coverage includes rate and day boundaries, legacy half-cent rounding, first-policy selection, repeated accrual, exactly two HTTP operations, withdrawal mapping, decimal persistence, rollback, lock lifetime, demo seeding, and CORS. OpenAPI lint passed without errors or warnings.
+Verified on 2026-10-08: **38 tests passed**, with no failures or skipped tests — 21 domain calculator cases, 3 original-API compatibility tests, 1 facade test, 10 database/API tests, and 3 demo-profile tests. Coverage includes the first 30 days for all plans, rate and eligibility boundaries, legacy half-cent rounding, first-policy selection, repeated accrual, exactly two HTTP operations, every GET field for all three plans, updated balances and unchanged withdrawal history after POST, decimal persistence, rollback, lock lifetime, demo seeding, and CORS. OpenAPI lint passed without errors or warnings.
 
-The packaged JAR was also started with the demo profile against a fresh PostgreSQL database. GET, POST, seeded withdrawals, resulting balances, unchanged days, and the Swagger CORS response were checked over HTTP.
+Two targeted mutation checks were run in temporary copies of the source: allowing student interest during the first 30 days, and forcing every GET `planType` to `basic`. The new tests failed with assertion errors for both mutations. These checks verify the two previously identified gaps; they are not a full mutation analysis or a run of the evaluator's unavailable tests.
+
+During the earlier verification on 2026-09-28, the packaged JAR was also started with the demo profile against a fresh PostgreSQL database. GET, POST, seeded withdrawals, resulting balances, unchanged days, and the Swagger CORS response were checked over HTTP.
 
 The [AI workflow](../docs/AI_WORKFLOW.md) records the tools, repository instructions, and three prompts for reproducing the development stages.
 

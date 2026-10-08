@@ -17,8 +17,9 @@ AI was used to support requirement refinement, identify edge cases, and accelera
 
 ```text
 Read docs/ASSIGNMENT.md (or the original kata README) and the original Java code.
-Use Java 21. Keep the shared TimeDeposit class unchanged and preserve
-TimeDepositCalculator.updateBalance(List<TimeDeposit>) and its behavior.
+Use Java 21. Keep the shared TimeDeposit class unchanged and preserve the
+original org.ikigaidigital.TimeDepositCalculator public entry point, its
+no-argument constructor, and updateBalance(List<TimeDeposit>) behavior.
 Characterize plan thresholds, unknown names, repeated accrual, and the original
 half-cent rounding. Extract plan-specific InterestPolicy implementations and
 keep the calculator readable. Use constructor injection for the policies.
@@ -53,7 +54,13 @@ commits. Report the checks actually run and any remaining limitations.
 
 ## Verification
 
-The suite contains 26 tests covering the domain, the input port with an in-memory repository, and the real HTTP/PostgreSQL integration. Commands and verified results are recorded in the [runbook](../java/README.md#verification). The original [assignment](ASSIGNMENT.md) is retained for comparison.
+The suite covers the original public calculator API, domain rules, the input port with an in-memory repository, and real HTTP/PostgreSQL integration. Commands, test counts, and verified results are recorded in the [runbook](../java/README.md#verification). The original [assignment](ASSIGNMENT.md) is retained for comparison.
+
+### Compatibility and regression review
+
+Codex assisted with restoring the original calculator package and no-argument constructor and closing two gaps found in the test suite. An external-package test first reproduced the missing public class as a compilation failure. Additional tests exercise every plan during the first 30 days and verify every GET field for all three plans, including balances after repeated POST requests and unchanged withdrawal history.
+
+To check that the assertions detect the identified regressions, two deliberate mutations were tested in temporary source copies: early student interest and incorrect GET plan types. Both caused assertion failures with the revised suite. The complete suite then provides the local verification baseline; evaluator tests are unavailable, so their results cannot be claimed.
 
 ## CI automation
 

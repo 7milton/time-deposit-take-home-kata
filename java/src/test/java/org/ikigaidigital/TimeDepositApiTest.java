@@ -33,6 +33,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -100,33 +101,83 @@ class TimeDepositApiTest {
     }
 
     @Test
-    void bothEndpointsUseTheDatabaseAndIncludeWithdrawals() throws Exception {
+    void getReturnsEveryFieldForEveryPlanWithHistoricalWithdrawals() throws Exception {
         TimeDepositEntity basic = deposit("basic", "1000.00", 45);
         TimeDepositEntity student = deposit("student", "500.00", 100);
-        withdrawal(basic, "25.00", LocalDate.of(2026, 1, 15));
+        TimeDepositEntity premium = deposit("premium", "10000.00", 60);
+        WithdrawalEntity withdrawal = withdrawal(basic, "25.00", LocalDate.of(2026, 1, 15));
 
-        HttpResponse<String> before = getDeposits();
-        assertThat(before.statusCode()).isEqualTo(200);
-        JsonNode all = json.readTree(before.body());
-        assertThat(all.size()).isEqualTo(2);
-        JsonNode first = all.get(0);
-        assertThat(first.get("id").asInt()).isEqualTo(basic.getId());
-        assertThat(first.get("planType").asText()).isEqualTo("basic");
-        assertThat(first.get("balance").decimalValue()).isEqualByComparingTo("1000.00");
-        assertThat(first.get("days").asInt()).isEqualTo(45);
-        assertThat(first.get("withdrawals").size()).isEqualTo(1);
-        assertThat(first.get("withdrawals").get(0).get("amount").decimalValue())
-            .isEqualByComparingTo("25.00");
-        assertThat(first.get("withdrawals").get(0).get("date").asText())
-            .isEqualTo("2026-01-15");
+        HttpResponse<String> response = getDeposits();
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        JsonNode all = json.readTree(response.body());
+        assertThat(all.isArray()).isTrue();
+        assertThat(all.size()).isEqualTo(3);
+        assertDeposit(all.get(0), basic.getId(), "basic", "1000.00", 45);
+        assertDeposit(all.get(1), student.getId(), "student", "500.00", 100);
+        assertDeposit(all.get(2), premium.getId(), "premium", "10000.00", 60);
+        assertHistoricalWithdrawal(all.get(0), withdrawal.getId());
+        assertThat(all.get(1).get("withdrawals").size()).isZero();
+        assertThat(all.get(2).get("withdrawals").size()).isZero();
+    }
+
+    @Test
+    void eachPostPersistsAccrualForEveryPlanAndGetReturnsTheUpdatedBalances() throws Exception {
+        TimeDepositEntity basic = deposit("basic", "1000.00", 45);
+        TimeDepositEntity student = deposit("student", "500.00", 100);
+        TimeDepositEntity premium = deposit("premium", "10000.00", 60);
+        WithdrawalEntity withdrawal = withdrawal(basic, "25.00", LocalDate.of(2026, 1, 15));
 
         assertThat(postUpdate().statusCode()).isEqualTo(204);
         assertThat(balance(basic.getId())).isEqualByComparingTo("1000.83");
         assertThat(balance(student.getId())).isEqualByComparingTo("501.25");
+        assertThat(balance(premium.getId())).isEqualByComparingTo("10041.67");
+        HttpResponse<String> firstResponse = getDeposits();
+        assertThat(firstResponse.statusCode()).isEqualTo(200);
+        JsonNode first = json.readTree(firstResponse.body());
+        assertThat(first.size()).isEqualTo(3);
+        assertDeposit(first.get(0), basic.getId(), "basic", "1000.83", 45);
+        assertDeposit(first.get(1), student.getId(), "student", "501.25", 100);
+        assertDeposit(first.get(2), premium.getId(), "premium", "10041.67", 60);
+        assertHistoricalWithdrawal(first.get(0), withdrawal.getId());
+        assertThat(first.get(1).get("withdrawals").size()).isZero();
+        assertThat(first.get(2).get("withdrawals").size()).isZero();
+
         assertThat(postUpdate().statusCode()).isEqualTo(204);
         assertThat(balance(basic.getId())).isEqualByComparingTo("1001.66");
         assertThat(balance(student.getId())).isEqualByComparingTo("502.50");
-        assertThat(json.readTree(getDeposits().body()).get(0).get("days").asInt()).isEqualTo(45);
+        assertThat(balance(premium.getId())).isEqualByComparingTo("10083.51");
+        HttpResponse<String> secondResponse = getDeposits();
+        assertThat(secondResponse.statusCode()).isEqualTo(200);
+        JsonNode second = json.readTree(secondResponse.body());
+        assertThat(second.size()).isEqualTo(3);
+        assertDeposit(second.get(0), basic.getId(), "basic", "1001.66", 45);
+        assertDeposit(second.get(1), student.getId(), "student", "502.50", 100);
+        assertDeposit(second.get(2), premium.getId(), "premium", "10083.51", 60);
+        assertHistoricalWithdrawal(second.get(0), withdrawal.getId());
+        assertThat(second.get(1).get("withdrawals").size()).isZero();
+        assertThat(second.get(2).get("withdrawals").size()).isZero();
+    }
+
+    @Test
+    void postLeavesIneligibleDepositsUnchanged() throws Exception {
+        List<TimeDepositEntity> ineligible = List.of(
+            deposit("basic", "1000.00", 30),
+            deposit("student", "1000.00", 30),
+            deposit("premium", "1000.00", 30),
+            deposit("premium", "1000.00", 45),
+            deposit("student", "1000.00", 366)
+        );
+
+        assertThat(postUpdate().statusCode()).isEqualTo(204);
+
+        ineligible.forEach(original -> {
+            TimeDepositEntity saved = deposits.findById(original.getId()).orElseThrow();
+            assertThat(saved.getBalance()).as("%s at day %s", original.getPlanType(), original.getDays())
+                .isEqualByComparingTo("1000.00");
+            assertThat(saved.getDays()).isEqualTo(original.getDays());
+            assertThat(saved.getPlanType()).isEqualTo(original.getPlanType());
+        });
     }
 
     @Test
@@ -206,6 +257,26 @@ class TimeDepositApiTest {
             .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    private void assertDeposit(JsonNode actual, int id, String plan, String balance, int days) {
+        assertThat(actual.isObject()).isTrue();
+        assertThat(actual.size()).isEqualTo(5);
+        assertThat(actual.get("id").asInt()).isEqualTo(id);
+        assertThat(actual.get("planType").asText()).isEqualTo(plan);
+        assertThat(actual.get("balance").decimalValue()).isEqualByComparingTo(balance);
+        assertThat(actual.get("days").asInt()).isEqualTo(days);
+        assertThat(actual.get("withdrawals").isArray()).isTrue();
+    }
+
+    private void assertHistoricalWithdrawal(JsonNode deposit, int withdrawalId) {
+        JsonNode history = deposit.get("withdrawals");
+        assertThat(history.size()).isEqualTo(1);
+        JsonNode withdrawal = history.get(0);
+        assertThat(withdrawal.size()).isEqualTo(3);
+        assertThat(withdrawal.get("id").asInt()).isEqualTo(withdrawalId);
+        assertThat(withdrawal.get("amount").decimalValue()).isEqualByComparingTo("25.00");
+        assertThat(withdrawal.get("date").asText()).isEqualTo("2026-01-15");
+    }
+
     private BigDecimal balance(int id) {
         return deposits.findById(id).orElseThrow().getBalance();
     }
@@ -231,8 +302,8 @@ class TimeDepositApiTest {
             .planType(planType).balance(new BigDecimal(balance)).days(days).build());
     }
 
-    private void withdrawal(TimeDepositEntity deposit, String amount, LocalDate date) {
-        withdrawals.save(WithdrawalEntity.builder()
+    private WithdrawalEntity withdrawal(TimeDepositEntity deposit, String amount, LocalDate date) {
+        return withdrawals.save(WithdrawalEntity.builder()
             .deposit(deposit).amount(new BigDecimal(amount)).date(date).build());
     }
 
